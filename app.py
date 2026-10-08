@@ -13,7 +13,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- 2. CONFIGURAÇÃO DA API GEMINI (COM FALLBACK ANTI-404) ---
+# --- 2. CONFIGURAÇÃO DO MODELO GEMINI (COM FALLBACK ANTI-404) ---
 api_key = None
 if "GEMINI_API_KEY" in st.secrets:
     api_key = st.secrets["GEMINI_API_KEY"]
@@ -121,7 +121,7 @@ Desconta para a segurança social (11%) e recebe, por dia, **5,80 €** de subs�
 **Pergunta:** Quanto recebeu em setembro de 2022, sabendo que trabalhou de segunda a sexta (22 dias úteis)?
 * **Taxa de Retenção de IRS:** **14,6%**.
 """,
-        "prompt_contexto": "Verifica: Base = 1956,40 €, Sub. Refeição = 22 x 5,80 = 127,60 €, SS = 1956,40 x 11% = 215,20 €, IRS = 1956,40 x 14,6% = 285,63 €, Valor Total a Receber = 1956,40 + 127,60 - 215,20 - 285,63 = 1583,17 €.",
+        "prompt_contexto": "Verifica: Base = 1956,40 €, Sub. Refeição = 22 x 5,80 = 127,60 €, SS = 1956,40 x 11% = 215,20 €, IRS = 1956,40 x 14,6% = 285,63 €, Valor Total a Receber = 1583,17 €.",
         "solucao": {
             "vencimento_base": 1956.40,
             "subsidio_alimentacao": 127.60,
@@ -143,7 +143,7 @@ Compara os valores recebidos pelo Carlos. Em **fevereiro de 2010**:
 * Trabalhou **21 dias** no mês.
 * **Taxa de IRS (2010):** **5,67%**.
 """,
-        "prompt_contexto": "Verifica: Base = 845,00 €, Sub. Almoço = 21 x 5,20 = 109,20 €, SS = 845 x 11% = 92,95 €, IRS = 845 x 5,67% = 47,91 €, Valor Total a Receber = 845 + 109,20 - 92,95 - 47,91 = 813,34 €.",
+        "prompt_contexto": "Verifica: Base = 845,00 €, Sub. Almoço = 21 x 5,20 = 109,20 €, SS = 845 x 11% = 92,95 €, IRS = 845 x 5,67% = 47,91 €, Valor Total a Receber = 813,34 €.",
         "solucao": {
             "vencimento_base": 845.00,
             "subsidio_alimentacao": 109.20,
@@ -165,7 +165,7 @@ Em **fevereiro de 2023**, o Carlos:
 * Trabalhou **20 dias** no mês.
 * **Taxa de IRS (2023):** **5%**.
 """,
-        "prompt_contexto": "Verifica: Base = 975,00 €, Sub. Almoço = 20 x 5,90 = 118,00 €, SS = 975 x 11% = 107,25 €, IRS = 975 x 5% = 48,75 €, Valor Total a Receber = 975 + 118,00 - 107,25 - 48,75 = 937,00 €.",
+        "prompt_contexto": "Verifica: Base = 975,00 €, Sub. Almoço = 20 x 5,90 = 118,00 €, SS = 975 x 11% = 107,25 €, IRS = 975 x 5% = 48,75 €, Valor Total a Receber = 937,00 €.",
         "solucao": {
             "vencimento_base": 975.00,
             "subsidio_alimentacao": 118.00,
@@ -236,8 +236,7 @@ Quanto recebeu nesse mês, sabendo que vivia no Porto, é solteira, não tem fil
     }
 }
 
-opcoes_exercicios = list(exercicios_dados.keys())
-opcoes_formatadas = [f"👉 {opcoes_exercicios[0]}"] + [f"⚪ {nome}" for nome in opcoes_exercicios[1:]]
+lista_nomes_ex = list(exercicios_dados.keys())
 
 # --- 5. INICIALIZAÇÃO DE ESTADO ---
 SENHA_CORRETA = st.secrets.get("SENHA_PROFESSOR", "epdr2026")
@@ -245,13 +244,13 @@ SENHA_CORRETA = st.secrets.get("SENHA_PROFESSOR", "epdr2026")
 if "professor_autenticado" not in st.session_state:
     st.session_state["professor_autenticado"] = False
 
-if "indice_exercicio" not in st.session_state:
-    st.session_state["indice_exercicio"] = 0
+if "visualizacao_atual" not in st.session_state:
+    st.session_state["visualizacao_atual"] = lista_nomes_ex[0]
 
 if "valores_folha" not in st.session_state:
     st.session_state["valores_folha"] = {}
 
-# --- 6. BARRA LATERAL ---
+# --- 6. BARRA LATERAL COM RETÂNGULOS DE NAVEGAÇÃO ---
 with st.sidebar:
     if os.path.exists("Logo.rm.png"):
         st.image("Logo.rm.png", use_container_width=True)
@@ -276,62 +275,63 @@ with st.sidebar:
     )
 
     # --- BOTÕES DE GESTÃO DE SESSÃO DO ALUNO ---
-    st.markdown("##### ⏱️ Gestão da Sessão de Trabalho")
+    st.markdown("##### ⏱️ Gestão da Sessão")
     col_sessao1, col_sessao2 = st.columns(2)
     chave_aluno = f"{turma}_{nome_aluno.strip().lower()}" if nome_aluno.strip() else None
 
     with col_sessao1:
-        if st.button("💾 Guardar e Fechar", use_container_width=True, help="Guarda o progresso para continuares em casa ou na próxima aula."):
+        if st.button("💾 Guardar", use_container_width=True, help="Guarda o progresso para continuares em casa ou na próxima aula."):
             if not chave_aluno:
                 st.warning("⚠️ Insere o teu nome antes de guardar.")
             else:
                 dados_progresso = {
                     "turma": turma,
                     "nome_aluno": nome_aluno.strip(),
-                    "indice_exercicio": st.session_state["indice_exercicio"],
+                    "visualizacao_atual": st.session_state["visualizacao_atual"],
                     "valores_folha": st.session_state["valores_folha"],
                     "data_hora": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 }
                 guardar_estado_aluno(chave_aluno, dados_progresso)
-                registar_interacao_csv(turma, nome_aluno, opcoes_exercicios[st.session_state["indice_exercicio"]], "Sessao_Fechada", "Aluno guardou o estado da aula.")
-                st.success("Sessão guardada com sucesso! Até à próxima aula.")
+                registar_interacao_csv(turma, nome_aluno, st.session_state["visualizacao_atual"], "Sessao_Fechada", "Aluno guardou o estado da aula.")
+                st.success("Sessão guardada!")
 
     with col_sessao2:
-        if st.button("🔄 Retomar Sessão", use_container_width=True, help="Recupera o último exercício e contas guardadas."):
+        if st.button("🔄 Retomar", use_container_width=True, help="Recupera o último exercício e contas guardadas."):
             if not chave_aluno:
-                st.warning("⚠️ Escreve o teu nome completo para recuperar.")
+                st.warning("⚠️ Escreve o teu nome completo.")
             else:
                 estados = carregar_estados()
                 if chave_aluno in estados:
                     dados_recup = estados[chave_aluno]
-                    st.session_state["indice_exercicio"] = dados_recup.get("indice_exercicio", 0)
+                    st.session_state["visualizacao_atual"] = dados_recup.get("visualizacao_atual", lista_nomes_ex[0])
                     st.session_state["valores_folha"] = dados_recup.get("valores_folha", {})
-                    st.success("Sessão anterior recuperada com sucesso!")
+                    st.success("Sessão recuperada!")
                     st.rerun()
                 else:
-                    st.info("Nenhuma sessão anterior encontrada com este nome.")
+                    st.info("Nenhuma sessão guardada.")
 
     st.markdown("---")
-    st.markdown("### 📍 Lista de Exercícios")
+    st.markdown("### 📍 Exercícios da Tarefa")
 
-    opcoes_menu = opcoes_formatadas + ["🔒 Área do Professor"]
-    
-    # Índice atual selecionado na navegação
-    idx_padrao = st.session_state["indice_exercicio"] if st.session_state["indice_exercicio"] < len(opcoes_formatadas) else 0
+    # Retângulos de Seleção de Exercício (Substituição dos Bullet Points)
+    for i, nome_ex in enumerate(lista_nomes_ex):
+        esta_ativo = (st.session_state["visualizacao_atual"] == nome_ex)
+        tipo_botao = "primary" if esta_ativo else "secondary"
+        
+        if st.button(nome_ex, key=f"btn_nav_{i}", type=tipo_botao, use_container_width=True):
+            st.session_state["visualizacao_atual"] = nome_ex
+            st.rerun()
 
-    navegacao = st.radio(
-        "Menu",
-        opcoes_menu,
-        index=idx_padrao,
-        key="radio_navegacao",
-        label_visibility="collapsed"
-    )
-
-    if navegacao in opcoes_formatadas:
-        st.session_state["indice_exercicio"] = opcoes_formatadas.index(navegacao)
+    st.markdown("---")
+    # Retângulo de Acesso Docente
+    prof_ativo = (st.session_state["visualizacao_atual"] == "AREA_PROFESSOR")
+    tipo_prof = "primary" if prof_ativo else "secondary"
+    if st.button("🔒 Área do Professor", key="btn_nav_prof", type=tipo_prof, use_container_width=True):
+        st.session_state["visualizacao_atual"] = "AREA_PROFESSOR"
+        st.rerun()
 
 # --- 7. ÁREA PROTEGIDA DO PROFESSOR ---
-if navegacao == "🔒 Área do Professor":
+if st.session_state["visualizacao_atual"] == "AREA_PROFESSOR":
     st.title("🔒 Área de Monitorização Docente")
     st.caption("Acesso reservado ao professor da disciplina.")
 
@@ -353,6 +353,7 @@ if navegacao == "🔒 Área do Professor":
         with col_btn:
             if st.button("Terminar Sessão", use_container_width=True):
                 st.session_state["professor_autenticado"] = False
+                st.session_state["visualizacao_atual"] = lista_nomes_ex[0]
                 st.rerun()
 
         st.markdown("---")
@@ -386,8 +387,7 @@ if navegacao == "🔒 Área do Professor":
     st.stop()
 
 # --- 8. ÁREA DO ALUNO ---
-indice_escolhido = st.session_state["indice_exercicio"]
-exercicio_atual = opcoes_exercicios[indice_escolhido]
+exercicio_atual = st.session_state["visualizacao_atual"]
 dados_ex = exercicios_dados[exercicio_atual]
 
 st.title("Tarefa 4 - Matemática para a cidadania")
@@ -403,7 +403,7 @@ col_cam, col_upload = st.columns([1.1, 0.9])
 
 with col_cam:
     st.markdown("📷 **Fotografar a resolução no caderno**")
-    foto_cam = st.camera_input("Tirar foto", label_visibility="collapsed", key=f"cam_{indice_escolhido}")
+    foto_cam = st.camera_input("Tirar foto", label_visibility="collapsed", key=f"cam_{exercicio_atual}")
 
 with col_upload:
     st.markdown("📁 **Ou envia ficheiro da galeria**")
@@ -411,7 +411,7 @@ with col_upload:
         "Upload",
         type=["png", "jpg", "jpeg"],
         label_visibility="collapsed",
-        key=f"up_{indice_escolhido}"
+        key=f"up_{exercicio_atual}"
     )
 
 imagem_final = foto_cam if foto_cam is not None else foto_upload
@@ -455,7 +455,7 @@ st.caption("Transfere os valores calculados para a folha e carrega em validar pa
 
 valores_salvos = st.session_state["valores_folha"].get(exercicio_atual, {})
 
-with st.form(key=f"form_folha_{indice_escolhido}"):
+with st.form(key=f"form_folha_{exercicio_atual}"):
     c1, c2 = st.columns(2)
     
     with c1:
@@ -482,7 +482,6 @@ if submeter_folha:
     if not nome_aluno.strip():
         st.warning("⚠️ Insere o teu nome completo na barra lateral para poderes validar a folha.")
     else:
-        # Guarda na memória interna do browser
         st.session_state["valores_folha"][exercicio_atual] = {
             "base": v_base,
             "sub_alim": v_sub_alim,
