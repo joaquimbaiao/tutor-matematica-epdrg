@@ -75,7 +75,8 @@ def guardar_estado_aluno(chave_aluno, dados):
 
 def registar_interacao_csv(turma, aluno, exercicio, tipo, detalhes):
     ficheiro_existe = os.path.isfile(CSV_FILE)
-    resumo = str(detalhes).replace("\n", " ").strip()[:300]
+    # Guarda o texto integral, removendo quebras de linha para consistência tabular
+    resumo = str(detalhes).replace("\n", " ").strip()
     with open(CSV_FILE, mode="a", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=CAMPOS_CSV)
         if not ficheiro_existe:
@@ -138,7 +139,7 @@ Desconta para a segurança social (11%) e recebe, por dia, **5,80 €** de subs�
 **Pergunta:** Quanto recebeu em setembro de 2022, sabendo que trabalhou de segunda a sexta (22 dias úteis)?
 * **Taxa de Retenção de IRS:** **14,6%**.
 """,
-        "prompt_contexto": "Verifica: Base = 1956,40 €, Sub. Refeição = 22 x 5,80 = 127,60 €, SS = 1956,40 x 11% = 215,20 €, IRS = 1956,40 x 14,6% = 285,63 €, Valor Total a Receber = 1583,17 €.",
+        "prompt_contexto": "Verifica: Base = 1956,40 €, Sub. Refeição = 22 x 5,80 = 127,60 €, SS = 1956,40 x 11% = 215,20 €, IRS = 1956,40 x 14,6% = 285,63 €, Valor Total a Receber = 1956,40 + 127,60 - 215,20 - 285,63 = 1583,17 €.",
         "solucao": {
             "vencimento_base": 1956.40,
             "subsidio_alimentacao": 127.60,
@@ -160,7 +161,7 @@ Compara os valores recebidos pelo Carlos. Em **fevereiro de 2010**:
 * Trabalhou **21 dias** no mês.
 * **Taxa de IRS (2010):** **5,67%**.
 """,
-        "prompt_contexto": "Verifica: Base = 845,00 €, Sub. Almoço = 21 x 5,20 = 109,20 €, SS = 845 x 11% = 92,95 €, IRS = 845 x 5,67% = 47,91 €, Valor Total a Receber = 813,34 €.",
+        "prompt_contexto": "Verifica: Base = 845,00 €, Sub. Almoço = 21 x 5,20 = 109,20 €, SS = 845 x 11% = 92,95 €, IRS = 845 x 5,67% = 47,91 €, Valor Total a Receber = 845 + 109,20 - 92,95 - 47,91 = 813,34 €.",
         "solucao": {
             "vencimento_base": 845.00,
             "subsidio_alimentacao": 109.20,
@@ -182,7 +183,7 @@ Em **fevereiro de 2023**, o Carlos:
 * Trabalhou **20 dias** no mês.
 * **Taxa de IRS (2023):** **5%**.
 """,
-        "prompt_contexto": "Verifica: Base = 975,00 €, Sub. Almoço = 20 x 5,90 = 118,00 €, SS = 975 x 11% = 107,25 €, IRS = 975 x 5% = 48,75 €, Valor Total a Receber = 937,00 €.",
+        "prompt_contexto": "Verifica: Base = 975,00 €, Sub. Almoço = 20 x 5,90 = 118,00 €, SS = 975 x 11% = 107,25 €, IRS = 975 x 5% = 48,75 €, Valor Total a Receber = 975 + 118,00 - 107,25 - 48,75 = 937,00 €.",
         "solucao": {
             "vencimento_base": 975.00,
             "subsidio_alimentacao": 118.00,
@@ -344,7 +345,7 @@ with st.sidebar:
         st.session_state["visualizacao_atual"] = "AREA_PROFESSOR"
         st.rerun()
 
-# --- 7. ÁREA PROTEGIDA DO PROFESSOR ---
+# --- 7. ÁREA PROTEGIDA DO PROFESSOR (COM CONSULTA DETALHADA) ---
 if st.session_state["visualizacao_atual"] == "AREA_PROFESSOR":
     st.title("🔒 Área de Monitorização Docente")
     st.caption("Acesso reservado ao professor da disciplina.")
@@ -382,14 +383,29 @@ if st.session_state["visualizacao_atual"] == "AREA_PROFESSOR":
             col_m3.metric("Exercícios Submetidos", df["exercicio"].nunique())
             
             st.markdown("---")
-            turma_filtro = st.multiselect("Filtrar por Turma:", options=df["turma"].unique(), default=df["turma"].unique())
+            turmas_disponiveis = list(df["turma"].unique())
+            turma_filtro = st.multiselect("Filtrar por Turma:", options=turmas_disponiveis, default=turmas_disponiveis)
             df_filtrado = df[df["turma"].isin(turma_filtro)]
-            
+
+            # 1. Tabela Geral de Monitorização
+            st.subheader("📋 Tabela Geral de Submissões")
             st.dataframe(df_filtrado, use_container_width=True)
 
+            # 2. Leitor detalhado de feedback e contas por aluno
+            st.subheader("🔍 Consultar Feedback Detalhado por Aluno")
+            alunos_lista = sorted(df_filtrado["nome_aluno"].dropna().unique())
+            if alunos_lista:
+                aluno_sel = st.selectbox("Escolhe um aluno para ver todo o histórico:", alunos_lista)
+                registos_aluno = df_filtrado[df_filtrado["nome_aluno"] == aluno_sel]
+                
+                for _, linha in registos_aluno.iterrows():
+                    with st.expander(f"📌 {linha['exercicio']} [{linha['tipo_registo']}] — {linha['data_hora']}"):
+                        st.write(linha["detalhes"])
+
+            st.markdown("---")
             with open(CSV_FILE, "rb") as f:
                 st.download_button(
-                    label="📥 Descarregar Folha de Monitorização (CSV)",
+                    label="📥 Descarregar Folha Completa (CSV)",
                     data=f,
                     file_name=f"monitorizacao_alunos_{datetime.now().strftime('%Y%m%d')}.csv",
                     mime="text/csv",
@@ -411,7 +427,6 @@ st.markdown(dados_ex["enunciado"])
 # --- PASSO 1: DIFERENCIAÇÃO ENTRE O EXEMPLO GUIADO E OS EXERCÍCIOS 1 A 5 ---
 if exercicio_atual == "Exemplo Guiado: Vencimento Mensal da Catarina":
     st.markdown("---")
-    # Resolução sem recurso a câmara ou chamada da IA
     st.markdown(dados_ex["resolucao_guiada"])
 else:
     st.markdown("---")
