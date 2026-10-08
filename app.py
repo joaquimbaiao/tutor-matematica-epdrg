@@ -275,7 +275,7 @@ if imagem_aluno is not None:
                     """
                     
                     resp = client.models.generate_content(
-                        model="gemini-3.5-flash.lite",
+                        model="gemini-1.5-flash",
                         contents=[prompt_tutor, img_pil]
                     )
                     st.info("💡 **Feedback do Tutor:**")
