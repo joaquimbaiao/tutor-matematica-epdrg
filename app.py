@@ -1,19 +1,18 @@
 import os
+import csv
+from datetime import datetime
 import streamlit as st
 from PIL import Image
 import google.generativeai as genai
 
-# --- CONFIGURAÇÃO DA PÁGINA ---
+# --- 1. CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
     page_title="Tarefa 4 - Modelos Matemáticos para a cidadania",
+    page_icon="📐",
     layout="wide"
 )
 
-# --- TÍTULO PRINCIPAL ---
-st.title("Tarefa 4 - Modelos Matemáticos para a cidadania")
-st.caption("Tutor Inteligente de Apoio à Resolução de Exercícios e Análise de Cálculos")
-
-# --- AUTENTICAÇÃO E API KEY ---
+# --- 2. CONFIGURAÇÃO DO MODELO GEMINI (ANTI-404 COM FALLBACK) ---
 api_key = None
 if "GEMINI_API_KEY" in st.secrets:
     api_key = st.secrets["GEMINI_API_KEY"]
@@ -25,19 +24,18 @@ elif os.environ.get("GOOGLE_API_KEY"):
     api_key = os.environ.get("GOOGLE_API_KEY")
 
 if not api_key:
-    st.error("Chave de API não configurada. Define 'GEMINI_API_KEY' nos Secrets do Streamlit.")
+    st.error("Chave de API não configurada. Configura 'GEMINI_API_KEY' nos Secrets do Streamlit.")
     st.stop()
 
 genai.configure(api_key=api_key)
 
-# --- FUNÇÃO DE SELEÇÃO DINÂMICA DO MODELO (ANTI-404) ---
 @st.cache_resource
 def obter_modelo():
     preferenciais = [
         "gemini-1.5-flash",
         "gemini-2.0-flash",
         "gemini-1.5-pro",
-        "gemini-flash-latest",
+        "gemini-flash-latest"
     ]
     try:
         disponiveis = [
@@ -54,89 +52,198 @@ def obter_modelo():
         pass
     return genai.GenerativeModel("gemini-1.5-flash")
 
-# --- COMPONENTE REUTILIZÁVEL PARA CADA EXERCÍCIO ---
-def renderizar_exercicio(nome_ex, descricao, instrucao_tutor):
-    st.markdown(f"### {nome_ex}")
-    st.info(descricao)
+# --- 3. GESTÃO DO FICHEIRO CSV DE MONITORIZAÇÃO ---
+CSV_FILE = "monitorizacao_tarefa4.csv"
 
-    col1, col2 = st.columns([1, 1])
+def registar_interacao_csv(turma, aluno, exercicio, feedback):
+    campos = ["data_hora", "turma", "nome_aluno", "exercicio", "feedback_resumido"]
+    ficheiro_existe = os.path.isfile(CSV_FILE)
+    resumo = feedback.replace("\n", " ").strip()[:300]
+    
+    with open(CSV_FILE, mode="a", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=campos)
+        if not ficheiro_existe:
+            writer.writeheader()
+        writer.writerow({
+            "data_hora": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "turma": turma,
+            "nome_aluno": aluno,
+            "exercicio": exercicio,
+            "feedback_resumido": resumo
+        })
 
-    with col1:
-        st.write("**Entrada da Resolução:**")
-        modo = st.radio(
-            f"Como queres submeter a tua folha ({nome_ex})?",
-            ["Câmara", "Upload de Ficheiro"],
-            key=f"modo_{nome_ex}",
-            horizontal=True
-        )
-
-        imagem_arquivo = None
-        if modo == "Câmara":
-            imagem_arquivo = st.camera_input(f"Fotografa os teus cálculos para {nome_ex}", key=f"cam_{nome_ex}")
-        else:
-            imagem_arquivo = st.file_uploader(f"Envia a imagem ({nome_ex})", type=["png", "jpg", "jpeg"], key=f"up_{nome_ex}")
-
-    with col2:
-        st.write("**Validação e Feedback:**")
-        if imagem_arquivo is not None:
-            img = Image.open(imagem_arquivo)
-            st.image(img, caption="Folha submetida", use_container_width=True)
-
-            if st.button(f"🔍 Pedir Análise ao Tutor IA ({nome_ex})", type="primary", key=f"btn_{nome_ex}"):
-                with st.spinner("O Tutor IA está a rever os teus passos de cálculo..."):
-                    try:
-                        model = obter_modelo()
-                        prompt = (
-                            f"És um tutor pedagógico rigoroso na disciplina de Modelos Matemáticos para a Cidadania / MACS. "
-                            f"O aluno está a resolver o seguinte exercício: {nome_ex}.\n"
-                            f"Contexto/Objetivo do problema: {descricao}.\n\n"
-                            f"Instruções específicas para a correção: {instrucao_tutor}\n\n"
-                            "Analisa a imagem com o trabalho manuscrito do aluno:\n"
-                            "1. Identifica a coerência das fórmulas utilizadas.\n"
-                            "2. Confere a exatidão dos cálculos numéricos passo a passo.\n"
-                            "3. Se houver erro, aponta a linha/passo exato onde ocorreu e explica o porquê sem apenas dar a solução final diretamente, incentivando o raciocínio.\n"
-                            "4. Se estiver tudo correto, valida a conclusão e fundamenta o acerto com clareza."
-                        )
-                        response = model.generate_content([prompt, img])
-                        st.success("Análise concluída!")
-                        st.markdown(response.text)
-                    except Exception as e:
-                        st.error(f"Erro ao processar com a IA: {e}")
-        else:
-            st.write("Aguarda a submissão de uma imagem para iniciar a análise.")
-
-# --- DEFINIÇÃO DOS EXERCÍCIOS DA TAREFA ---
-# Configura aqui os restantes exercícios, descrições e objetivos pedagógicos específicos:
-exercicios = [
-    {
-        "nome": "Exercício 1: Folha de Vencimento e Descontos",
-        "descricao": "Cálculo de remuneração bruta, retenção na fonte (IRS), taxa social única (SS) e determinação do salário líquido.",
-        "prompt": "Valida se as percentagens de retenção e segurança social foram aplicadas sobre a base de incidência correta e se a subtração final para o salário líquido bate certo."
+# --- 4. BASE DE DADOS DOS EXERCÍCIOS ---
+exercicios_dados = {
+    "Exemplo Guiado: Vencimento Mensal com ADSE": {
+        "enunciado": """
+O funcionário aufere uma **Remuneração Base de 1 988,35 €**.
+Trabalhou 20 dias úteis com subsídio de alimentação de **5,20 €/dia**.
+Está sujeito a:
+* **11%** para a Segurança Social;
+* **20,4%** de retenção na fonte de IRS;
+* **3,5%** de contribuição para a ADSE.
+""",
+        "prompt_contexto": "O aluno deve calcular a remuneração ilíquida, os descontos exatos para Segurança Social (11%), IRS (20,4%) e ADSE (3,5%) e subtrair para obter o salário líquido."
     },
-    {
-        "nome": "Exercício 2: Orçamento Familiar e Poupança",
-        "descricao": "Análise de receitas, despesas fixas/variáveis e taxa de esforço associada a encargos mensais.",
-        "prompt": "Verifica os cálculos das proporções de despesa, a taxa de esforço percentual e as projeções de saldo líquido ou poupança mensal."
+    "Exercício 1: O Caso do Mateus (Açores - Setembro de 2022)": {
+        "enunciado": """
+O Mateus reside e trabalha na Região Autónoma dos Açores.
+Analisa a remuneração base, subsídios aplicáveis e as taxas específicas da região para apurar o valor líquido recebido em setembro de 2022.
+""",
+        "prompt_contexto": "Verifica se o aluno aplicou corretamente as retenções e deduções específicas para a Região Autónoma dos Açores."
     },
-    {
-        "nome": "Exercício 3: Crédito e Juros (Simulação)",
-        "descricao": "Modelagem de regimes de juro, amortização ou custos totais associados a encargos bancários (TAEG/MTIC).",
-        "prompt": "Verifica se as fórmulas de juro ou cálculo do custo total de crédito foram corretamente estruturadas e aplicadas nas iterações temporais."
+    "Exercício 2.1: Carlos na Madeira (Fevereiro de 2010)": {
+        "enunciado": """
+O Carlos exerce funções na Região Autónoma da Madeira.
+Calcula o vencimento líquido considerando os dias úteis do mês de fevereiro de 2010 e a tabela de retenção em vigor à data.
+""",
+        "prompt_contexto": "Verifica o apuramento dos dias de subsídio de alimentação e as respetivas taxas de incidência."
     },
-    {
-        "nome": "Exercício 4: Indicadores e Modelos de Decisão",
-        "descricao": "Aplicação de proporcionalidade, variação percentual ou índice ponderado na tomada de decisões cívicas/financeiras.",
-        "prompt": "Valida a correta utilização de médias ponderadas, taxas de crescimento percentuais e a interpretação matemática do resultado obtido."
+    "Exercício 2.2: Carlos em Lisboa (Fevereiro de 2023)": {
+        "enunciado": """
+O Carlos foi transferido para Lisboa em fevereiro de 2023.
+Determina o impacto da mudança no seu salário líquido, tendo em conta as novas tabelas de retenção do Continente.
+""",
+        "prompt_contexto": "Compara as diferenças de retenção entre a Madeira e o Continente e valida o resultado final."
+    },
+    "Exercício 3: Mariana na Junta de Freguesia (Exame MACS 2023)": {
+        "enunciado": """
+A Mariana trabalha numa Junta de Freguesia.
+Aplica as regras de cálculo salarial, subsídios adicionais e deduções obrigatórias constantes no problema de exame.
+""",
+        "prompt_contexto": "Aplica o rigor dos critérios do exame de MACS 2023 quanto à precisão e etapas de cálculo."
+    },
+    "Exercício 4: Catarina após a Maternidade (Setembro de 2023)": {
+        "enunciado": """
+A Catarina regressou ao trabalho após licença parental em setembro de 2023.
+Calcula o vencimento proporcional aos dias trabalhados e as respetivas deduções fiscais e contributivas.
+""",
+        "prompt_contexto": "Confere o cálculo proporcional dos dias trabalhados e se as taxas incidem sobre a remuneração proporcional exata."
+    },
+    "Exercício 5: Carina no Porto (Tabela com Fórmula de Abate)": {
+        "enunciado": """
+A Carina trabalha no Porto e o seu IRS é determinado através das novas tabelas com taxa marginal e **parcela a abater**.
+Determina a retenção efetiva de IRS e o vencimento líquido final.
+""",
+        "prompt_contexto": "Verifica minuciosamente se o aluno aplicou a fórmula de abate: (Remuneração x Taxa Marginal) - Parcela a Abater."
     }
-]
+}
 
-# --- NAVEGAÇÃO POR ABAS (TABS) ---
-abas = st.tabs([ex["nome"] for ex in exercicios])
+# --- 5. BARRA LATERAL (LAYOUT FIEL À IMAGEM) ---
+with st.sidebar:
+    if os.path.exists("logo.png"):
+        st.image("logo.png", use_container_width=True)
+    
+    st.markdown("## **EPDR Grândola**")
+    st.markdown("##### **Tarefa 4 - Modelos Matemáticos para a cidadania**")
+    
+    st.markdown("**Nome do Aluno:**")
+    nome_aluno = st.text_input("Nome do Aluno", placeholder="Escreve o teu nome completo", label_visibility="collapsed")
+    
+    st.markdown("**Turma:**")
+    turma = st.selectbox(
+        "Turma",
+        ["10º TCP/TRB", "10º A", "10º B", "11º TCP/TRB", "11º A", "12º TCP/TRB", "12º A"],
+        index=0,
+        label_visibility="collapsed"
+    )
+    
+    st.markdown("---")
+    st.markdown("### 📍 Lista de Exercícios")
+    
+    opcoes_exercicios = list(exercicios_dados.keys())
+    
+    # Ícones estilizados como no ecrã
+    opcoes_formatadas = [
+        f"👉 {opcoes_exercicios[0]}"
+    ] + [f"⚪ {nome}" for nome in opcoes_exercicios[1:]]
+    
+    escolha_formatada = st.radio(
+        "Exercícios",
+        opcoes_formatadas,
+        label_visibility="collapsed"
+    )
+    
+    # Recupera o nome exato da chave
+    indice_escolhido = opcoes_formatadas.index(escolha_formatada)
+    exercicio_atual = opcoes_exercicios[indice_escolhido]
+    
+    st.markdown("---")
+    # Monitorização do Professor: Download do CSV
+    if os.path.isfile(CSV_FILE):
+        with open(CSV_FILE, "rb") as f:
+            st.download_button(
+                label="📥 Descarregar Folha de Monitorização (CSV)",
+                data=f,
+                file_name=f"monitorizacao_alunos_{datetime.now().strftime('%Y%m%d')}.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
 
-for i, ex in enumerate(exercicios):
-    with abas[i]:
-        renderizar_exercicio(
-            nome_ex=ex["nome"],
-            descricao=ex["descricao"],
-            instrucao_tutor=ex["prompt"]
-        )
+# --- 6. ÁREA PRINCIPAL: ENUNCIADO E SUBMISSÃO ---
+dados_ex = exercicios_dados[exercicio_atual]
+
+# Apresentação do enunciado
+st.markdown(dados_ex["enunciado"])
+
+st.markdown("## 📸 Passo 1: Faz os cálculos no caderno e tira uma fotografia")
+st.caption("Usa o caderno para estruturar o raciocínio. O Tutor lê as tuas contas e diz-te se estás no bom caminho.")
+
+# Duas colunas exatamente como na captura
+col_cam, col_upload = st.columns([1.1, 0.9])
+
+with col_cam:
+    st.markdown("📷 **Fotografar a resolução no caderno**")
+    foto_cam = st.camera_input("Tirar foto", label_visibility="collapsed", key=f"cam_{indice_escolhido}")
+
+with col_upload:
+    st.markdown("📁 **Ou envia ficheiro da galeria**")
+    foto_upload = st.file_uploader(
+        "Upload",
+        type=["png", "jpg", "jpeg"],
+        label_visibility="collapsed",
+        key=f"up_{indice_escolhido}"
+    )
+
+# Escolhe a foto disponível
+imagem_final = foto_cam if foto_cam is not None else foto_upload
+
+# --- 7. PRÉ-VISUALIZAÇÃO E ANÁLISE ---
+if imagem_final is not None:
+    img = Image.open(imagem_final)
+    
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.image(img, caption="A tua folha de cálculos", use_container_width=True)
+    
+    if st.button("🔍 Pedir Análise ao Tutor IA", type="primary", use_container_width=True):
+        if not nome_aluno.strip():
+            st.warning("⚠️ Por favor, escreve o teu nome completo na barra lateral antes de pedir a análise.")
+        else:
+            with st.spinner("A analisar a tua folha de cálculos..."):
+                try:
+                    model = obter_modelo()
+                    prompt = (
+                        f"És um tutor pedagógico da disciplina de Modelos Matemáticos para a Cidadania / MACS na EPDR Grândola. "
+                        f"Aluno: {nome_aluno} (Turma: {turma}).\n"
+                        f"Exercício: {exercicio_atual}.\n"
+                        f"Enunciado e Dados: {dados_ex['enunciado']}\n"
+                        f"Foco didático: {dados_ex['prompt_contexto']}\n\n"
+                        "Analisa a folha de cálculos manuscrita do aluno na imagem com o máximo rigor:\n"
+                        "1. Confere todos os passos e operações aritméticas (taxas, multiplicações e subtrações finais).\n"
+                        "2. Se existir algum erro, identifica com precisão a linha/etapa onde ocorreu e explica a razão do engano, dando pistas para o aluno corrigir sem apenas entregar a resposta final.\n"
+                        "3. Se estiver tudo correto, elogia o rigor matemático e confirma o valor final obtido.\n"
+                        "4. Responde de forma clara, motivadora e estruturada em português de Portugal."
+                    )
+                    
+                    response = model.generate_content([prompt, img])
+                    feedback_ia = response.text
+                    
+                    st.success("Análise concluída com sucesso!")
+                    st.markdown(feedback_ia)
+                    
+                    # Guarda os dados na folha CSV
+                    registar_interacao_csv(turma, nome_aluno, exercicio_atual, feedback_ia)
+                    st.caption("✅ Resolução e feedback registados na monitorização da turma.")
+                    
+                except Exception as e:
+                    st.error(f"Erro ao processar imagem com a IA: {e}")
