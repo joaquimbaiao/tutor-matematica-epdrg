@@ -61,4 +61,38 @@ def obter_modelo():
         # Se list_models falhar por rede ou versão, recorre à string padrão
         pass
 
-    return genai.GenerativeModel("gemini-1
+    return genai.GenerativeModel("gemini-1.5-flash")
+
+# --- INTERFACE: CAPTURA OU UPLOAD DA FOLHA ---
+st.subheader("A tua folha de cálculos")
+imagem_capturada = st.camera_input("Tira uma foto da folha")
+
+# Fallback opcional: upload de ficheiro caso a câmara não abra
+if not imagem_capturada:
+    imagem_capturada = st.file_uploader("Ou faz upload de uma imagem", type=["png", "jpg", "jpeg"])
+
+# --- PROCESSAMENTO COM O TUTOR IA ---
+if imagem_capturada is not None:
+    # Carregar imagem com PIL
+    img = Image.open(imagem_capturada)
+
+    if st.button("🔍 Pedir Análise ao Tutor IA", type="primary"):
+        with st.spinner("A analisar a tua folha de cálculos..."):
+            try:
+                model = obter_modelo()
+                
+                prompt = (
+                    "És um tutor especializado em cálculos financeiros e folhas de vencimento. "
+                    "Analisa os cálculos apresentados nesta imagem com rigor. "
+                    "Verifica se há erros de cálculo, passos omissos ou fórmulas incorretas. "
+                    "Apresenta a resposta de forma didática, direta e clara."
+                )
+                
+                # Chamada multimodal (texto + imagem)
+                response = model.generate_content([prompt, img])
+                
+                st.success("Análise concluída!")
+                st.markdown(response.text)
+
+            except Exception as e:
+                st.error(f"Erro ao processar imagem com a IA: {e}")
