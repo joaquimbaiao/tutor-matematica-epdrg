@@ -99,10 +99,27 @@ Desconta para a Segurança Social (11%) e recebe, por dia, **5,20 €** de subs�
 
 > **Nota:** O valor do subsídio de refeição, por dia, até aos 6 € (inclusive) não está sujeito a tributação.
 
-**Pergunta:** Qual foi o salário líquido da Catarina em abril de 2023, sabendo que trabalhou de segunda a sexta (20 dias úteis considerados)? E o valor total que recebeu no final do mês?
-* **Tabela de Retenção de IRS:** Tabela III (Casado, 2 titulares, 1 dependente) $\\rightarrow$ **12,3%**.
+**Questão:** Qual foi o salário líquido da Catarina em abril de 2023, sabendo que trabalhou de segunda a sexta (20 dias úteis considerados)? E o valor total que recebeu no final do mês?
 """,
-        "prompt_contexto": "Verifica: Base = 1256,20 €, Sub. Refeição = 20 x 5,20 = 104,00 €, SS = 1256,20 x 11% = 138,18 €, IRS = 1256,20 x 12,3% = 154,51 €, Salário Líquido = 963,51 €, Valor Total a Receber = 1067,58 €.",
+        "resolucao_guiada": """
+## 📘 Passo 1: Resolução Detalhada do Exemplo
+
+1. **Consulta da Tabela de Retenção de IRS:**
+   * **Tabela III** (Trabalho dependente - Casado, dois titulares);
+   * Com **1 dependente** e remuneração base de **1256,20 €** (escalão até 1280,00 €), a taxa de retenção na fonte é de **12,3%**.
+
+2. **Cálculo dos Rendimentos e Descontos:**
+   * **Remuneração Base:** $1256,20\\text{ €}$
+   * **Subsídio de Refeição:** $20\\text{ dias} \\times 5,20\\text{ €} = 104,00\\text{ €}$ (isento de impostos)
+   * **Segurança Social (SS - 11%):** $1256,20\\text{ €} \\times 0,11 = 138,18\\text{ €}$
+   * **Retenção na Fonte (IRS - 12,3%):** $1256,20\\text{ €} \\times 0,123 = 154,51\\text{ €}$
+
+3. **Valores Finais:**
+   * **Salário Líquido** = $\\text{Remuneração base} - \\text{IRS} - \\text{SS}$  
+     $\\text{Salário Líquido} = 1256,20 - 154,51 - 138,18 = \\mathbf{963,51\\text{ €}}$
+   * **Valor Total a Receber** = $\\text{Salário Líquido} + \\text{Subsídio de refeição}$  
+     $\\text{Valor a Receber} = 963,51 + 104,00 = \\mathbf{1067,58\\text{ €}}$
+""",
         "solucao": {
             "vencimento_base": 1256.20,
             "subsidio_alimentacao": 104.00,
@@ -250,7 +267,7 @@ if "visualizacao_atual" not in st.session_state:
 if "valores_folha" not in st.session_state:
     st.session_state["valores_folha"] = {}
 
-# --- 6. BARRA LATERAL COM RETÂNGULOS DE NAVEGAÇÃO ---
+# --- 6. BARRA LATERAL COM RETÂNGULOS ---
 with st.sidebar:
     if os.path.exists("Logo.rm.png"):
         st.image("Logo.rm.png", use_container_width=True)
@@ -274,13 +291,13 @@ with st.sidebar:
         label_visibility="collapsed"
     )
 
-    # --- BOTÕES DE GESTÃO DE SESSÃO DO ALUNO ---
+    # --- BOTÕES DE SESSÃO ---
     st.markdown("##### ⏱️ Gestão da Sessão")
     col_sessao1, col_sessao2 = st.columns(2)
     chave_aluno = f"{turma}_{nome_aluno.strip().lower()}" if nome_aluno.strip() else None
 
     with col_sessao1:
-        if st.button("💾 Guardar", use_container_width=True, help="Guarda o progresso para continuares em casa ou na próxima aula."):
+        if st.button("💾 Guardar", use_container_width=True, help="Guarda o teu progresso para continuares mais tarde."):
             if not chave_aluno:
                 st.warning("⚠️ Insere o teu nome antes de guardar.")
             else:
@@ -296,7 +313,7 @@ with st.sidebar:
                 st.success("Sessão guardada!")
 
     with col_sessao2:
-        if st.button("🔄 Retomar", use_container_width=True, help="Recupera o último exercício e contas guardadas."):
+        if st.button("🔄 Retomar", use_container_width=True, help="Recupera o exercício e valores onde ficaste."):
             if not chave_aluno:
                 st.warning("⚠️ Escreve o teu nome completo.")
             else:
@@ -313,17 +330,14 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("### 📍 Exercícios da Tarefa")
 
-    # Retângulos de Seleção de Exercício (Substituição dos Bullet Points)
     for i, nome_ex in enumerate(lista_nomes_ex):
         esta_ativo = (st.session_state["visualizacao_atual"] == nome_ex)
         tipo_botao = "primary" if esta_ativo else "secondary"
-        
         if st.button(nome_ex, key=f"btn_nav_{i}", type=tipo_botao, use_container_width=True):
             st.session_state["visualizacao_atual"] = nome_ex
             st.rerun()
 
     st.markdown("---")
-    # Retângulo de Acesso Docente
     prof_ativo = (st.session_state["visualizacao_atual"] == "AREA_PROFESSOR")
     tipo_prof = "primary" if prof_ativo else "secondary"
     if st.button("🔒 Área do Professor", key="btn_nav_prof", type=tipo_prof, use_container_width=True):
@@ -394,64 +408,69 @@ st.title("Tarefa 4 - Matemática para a cidadania")
 st.markdown(f"### `{exercicio_atual}`")
 st.markdown(dados_ex["enunciado"])
 
-# --- PASSO 1: FOTOGRAFIA DO CADERNO & TUTOR IA ---
-st.markdown("---")
-st.markdown("## 📸 Passo 1: Faz os cálculos no caderno e tira uma fotografia")
-st.caption("Usa o caderno para estruturar o raciocínio. O Tutor lê as tuas contas e valida os passos matemáticos.")
+# --- PASSO 1: DIFERENCIAÇÃO ENTRE O EXEMPLO GUIADO E OS EXERCÍCIOS 1 A 5 ---
+if exercicio_atual == "Exemplo Guiado: Vencimento Mensal da Catarina":
+    st.markdown("---")
+    # Resolução sem recurso a câmara ou chamada da IA
+    st.markdown(dados_ex["resolucao_guiada"])
+else:
+    st.markdown("---")
+    st.markdown("## 📸 Passo 1: Faz os cálculos no caderno e tira uma fotografia")
+    st.caption("Usa o caderno para estruturar o raciocínio. O Tutor lê as tuas contas e valida os passos matemáticos.")
 
-col_cam, col_upload = st.columns([1.1, 0.9])
+    col_cam, col_upload = st.columns([1.1, 0.9])
 
-with col_cam:
-    st.markdown("📷 **Fotografar a resolução no caderno**")
-    foto_cam = st.camera_input("Tirar foto", label_visibility="collapsed", key=f"cam_{exercicio_atual}")
+    with col_cam:
+        st.markdown("📷 **Fotografar a resolução no caderno**")
+        foto_cam = st.camera_input("Tirar foto", label_visibility="collapsed", key=f"cam_{exercicio_atual}")
 
-with col_upload:
-    st.markdown("📁 **Ou envia ficheiro da galeria**")
-    foto_upload = st.file_uploader(
-        "Upload",
-        type=["png", "jpg", "jpeg"],
-        label_visibility="collapsed",
-        key=f"up_{exercicio_atual}"
-    )
+    with col_upload:
+        st.markdown("📁 **Ou envia ficheiro da galeria**")
+        foto_upload = st.file_uploader(
+            "Upload",
+            type=["png", "jpg", "jpeg"],
+            label_visibility="collapsed",
+            key=f"up_{exercicio_atual}"
+        )
 
-imagem_final = foto_cam if foto_cam is not None else foto_upload
+    imagem_final = foto_cam if foto_cam is not None else foto_upload
 
-if imagem_final is not None:
-    img = Image.open(imagem_final)
-    st.image(img, caption="A tua folha de cálculos", use_container_width=True)
-    
-    if st.button("🔍 Pedir Análise ao Tutor IA", type="primary", use_container_width=True):
-        if not nome_aluno.strip():
-            st.warning("⚠️ Por favor, escreve o teu nome completo na barra lateral à esquerda.")
-        else:
-            with st.spinner("O Tutor IA está a avaliar os teus cálculos manuscritos..."):
-                try:
-                    model = obter_modelo()
-                    prompt = (
-                        f"És um tutor de Matemática para a Cidadania na EPDR Grândola.\n"
-                        f"Aluno: {nome_aluno} (Turma: {turma})\n"
-                        f"Exercício: {exercicio_atual}\n"
-                        f"Enunciado: {dados_ex['enunciado']}\n"
-                        f"Valores oficiais de referência: {dados_ex['prompt_contexto']}\n\n"
-                        "Analisa a folha de cálculos do aluno presente na imagem:\n"
-                        "1. Confere cada operação aritmética (dias úteis, percentagem da SS, escalão e percentagem de IRS, total líquido).\n"
-                        "2. Se detetares algum engano, indica a linha exata e orienta o aluno pedagogicamente para a correção.\n"
-                        "3. Se as contas estiverem corretas, confirma o sucesso e convida o aluno a registar os valores na Folha de Vencimento no Passo 2 abaixo."
-                    )
-                    response = model.generate_content([prompt, img])
-                    feedback_ia = response.text
-                    
-                    st.success("Análise do Tutor concluída!")
-                    st.markdown(feedback_ia)
-                    
-                    registar_interacao_csv(turma, nome_aluno, exercicio_atual, "Analise_IA", feedback_ia)
-                except Exception as e:
-                    st.error(f"Erro ao processar imagem com a IA: {e}")
+    if imagem_final is not None:
+        img = Image.open(imagem_final)
+        st.image(img, caption="A tua folha de cálculos", use_container_width=True)
+        
+        if st.button("🔍 Pedir Análise ao Tutor IA", type="primary", use_container_width=True):
+            if not nome_aluno.strip():
+                st.warning("⚠️ Por favor, escreve o teu nome completo na barra lateral à esquerda.")
+            else:
+                with st.spinner("O Tutor IA está a avaliar os teus cálculos manuscritos..."):
+                    try:
+                        model = obter_modelo()
+                        prompt = (
+                            f"És um tutor de Matemática para a Cidadania na EPDR Grândola.\n"
+                            f"Aluno: {nome_aluno} (Turma: {turma})\n"
+                            f"Exercício: {exercicio_atual}\n"
+                            f"Enunciado: {dados_ex['enunciado']}\n"
+                            f"Valores oficiais de referência: {dados_ex['prompt_contexto']}\n\n"
+                            "Analisa a folha de cálculos do aluno presente na imagem:\n"
+                            "1. Confere cada operação aritmética (dias úteis, percentagem da SS, escalão e percentagem de IRS, total líquido).\n"
+                            "2. Se detetares algum engano, indica a linha exata e orienta o aluno pedagogicamente para a correção.\n"
+                            "3. Se as contas estiverem corretas, confirma o sucesso e convida o aluno a registar os valores na Folha de Vencimento no Passo 2 abaixo."
+                        )
+                        response = model.generate_content([prompt, img])
+                        feedback_ia = response.text
+                        
+                        st.success("Análise do Tutor concluída!")
+                        st.markdown(feedback_ia)
+                        
+                        registar_interacao_csv(turma, nome_aluno, exercicio_atual, "Analise_IA", feedback_ia)
+                    except Exception as e:
+                        st.error(f"Erro ao processar imagem com a IA: {e}")
 
 # --- PASSO 2: PREENCHIMENTO DA FOLHA DE VENCIMENTO ---
 st.markdown("---")
 st.markdown("## ✍️ Passo 2: Preenchimento da Folha de Vencimento")
-st.caption("Transfere os valores calculados para a folha e carrega em validar para conferir com a chave oficial.")
+st.caption("Transfere os valores para o recibo e clica em validar para conferir com a chave oficial.")
 
 valores_salvos = st.session_state["valores_folha"].get(exercicio_atual, {})
 
